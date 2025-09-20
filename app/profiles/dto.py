@@ -134,3 +134,27 @@ def headers_list_to_json(headers: Optional[List[HeaderKV]]) -> Optional[Dict[str
     for h in headers:
         out[h.key] = h.value
     return out
+
+
+class CloneOverrides(BaseModel):
+    name: Optional[str] = None
+    device_type: Optional[DeviceType] = None
+    window: Optional[Window] = None
+    user_agent: Optional[str] = None
+    country: Optional[str] = None
+    custom_headers: Optional[List[HeaderKV]] = None
+
+    @field_validator("country")
+    @classmethod
+    def validate_country(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        c = v.strip().lower()
+        if len(c) != 2 or c not in ALLOWED_COUNTRIES:
+            raise ValueError("invalid_country")
+        return c
+
+
+class CloneFromTemplate(BaseModel):
+    template_id: str
+    overrides: Optional[CloneOverrides] = None

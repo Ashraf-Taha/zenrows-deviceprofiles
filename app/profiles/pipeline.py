@@ -7,8 +7,8 @@ from app.orchestrator.base import (
     BaseResponseTransformer,
     BaseValidator,
 )
-from app.profiles.dto import CreateProfile, UpdateProfile, ProfileResponse
-from app.profiles.repository import DeviceProfileRepository
+from app.profiles.dto import CreateProfile, UpdateProfile, ProfileResponse, CloneFromTemplate
+from app.profiles.repository import DeviceProfileRepository, ListFilters
 
 
 @dataclass
@@ -79,8 +79,6 @@ class ListExecutor(BaseExecutor[ListRequest, ListResponse]):
         self.repo = repo
 
     def execute(self, request: ListRequest) -> ListResponse:
-        from app.profiles.repository import ListFilters
-
         filters = ListFilters(
             is_template=request.is_template,
             device_type=request.device_type,
@@ -137,3 +135,23 @@ class DeleteExecutor(BaseExecutor[DeleteRequest, dict]):
     def execute(self, request: DeleteRequest) -> dict:
         self.repo.soft_delete(request.owner_id, request.profile_id)
         return {"deleted": True}
+
+
+@dataclass
+class CloneRequest:
+    owner_id: str
+    payload: CloneFromTemplate
+
+
+class CloneValidator(BaseValidator[CloneRequest]):
+    def validate(self, request: CloneRequest) -> None:
+        request.payload.model_validate(request.payload.model_dump())
+
+
+class CloneExecutor(BaseExecutor[CloneRequest, ProfileResponse]):
+    def __init__(self, repo: DeviceProfileRepository) -> None:
+        self.repo = repo
+
+    def execute(self, request: CloneRequest) -> ProfileResponse:
+        dp = self.repo.clone_from_template(request.owner_id, request.payload)
+        return ProfileResponse.from_model(dp)

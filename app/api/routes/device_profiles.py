@@ -1,14 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
+from pydantic import ValidationError
 
 from app.db.session import fastapi_session
 from app.orchestrator.orchestrator import PipelineOrchestrator
-from app.profiles.dto import CreateProfile, UpdateProfile
+from app.profiles.dto import CreateProfile, UpdateProfile, CloneFromTemplate
 from app.profiles.pipeline import (
     CreateExecutor,
     CreateRequest,
     CreateValidator,
+    CloneExecutor,
+    CloneRequest,
+    CloneValidator,
     DeleteExecutor,
     DeleteRequest,
     DeleteValidator,
@@ -41,14 +45,9 @@ def _user_id(request: Request) -> str:
 
 
 @router.post("/")
-def create_profile(payload: CreateProfile, request: Request, session: Session = Depends(fastapi_session)):
+def create_profile(payload: dict, request: Request, session: Session = Depends(fastapi_session)):
     repo = _repo(session)
     store = IdempotencyStore(session)
-    orch = PipelineOrchestrator[CreateRequest, object](
-        validators=[CreateValidator()],
-        executors=[CreateExecutor(repo)],
-        response_transformers=[IdentityResponse()],
-    )
     try:
         owner_id = _user_id(request)
         idem_key = request.headers.get("Idempotency-Key")
@@ -56,7 +55,22 @@ def create_profile(payload: CreateProfile, request: Request, session: Session = 
             cached = store.get(owner_id, idem_key)
             if cached is not None:
                 return cached
-        resp = orch.run(CreateRequest(owner_id=owner_id, payload=payload))
+        if "template_id" in payload:
+            clone = CloneFromTemplate.model_validate(payload)
+            orch = PipelineOrchestrator[CloneRequest, object](
+                validators=[CloneValidator()],
+                executors=[CloneExecutor(repo)],
+                response_transformers=[IdentityResponse()],
+            )
+            resp = orch.run(CloneRequest(owner_id=owner_id, payload=clone))
+        else:
+            create = CreateProfile.model_validate(payload)
+            orch = PipelineOrchestrator[CreateRequest, object](
+                validators=[CreateValidator()],
+                executors=[CreateExecutor(repo)],
+                response_transformers=[IdentityResponse()],
+            )
+            resp = orch.run(CreateRequest(owner_id=owner_id, payload=create))
         if idem_key:
             payload_json = jsonable_encoder(resp)
             store.save(owner_id, idem_key, payload_json)
@@ -64,6 +78,10 @@ def create_profile(payload: CreateProfile, request: Request, session: Session = 
         return resp
     except ConflictError:
         raise HTTPException(status_code=409, detail="conflict")
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="not_found")
+    except ValidationError:
+        raise HTTPException(status_code=422, detail="validation_error")
 
 
 @router.get("/{profile_id}")

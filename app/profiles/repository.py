@@ -7,9 +7,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.db.models import DeviceProfile, DeviceProfileVersion
+from app.db.models import DeviceProfile, DeviceProfileVersion, Visibility
 from app.db.scoping import scope_profiles
-from app.profiles.dto import CreateProfile, UpdateProfile, headers_list_to_json
+from app.profiles.dto import CreateProfile, UpdateProfile, headers_list_to_json, CloneFromTemplate
 
 
 class ConflictError(Exception):
@@ -104,6 +104,15 @@ class DeviceProfileRepository:
         rows = self.session.execute(q).scalars().all()
         return rows
 
+    def get_template_readable(self, user_id: str, template_id: str) -> DeviceProfile:
+        q = select(DeviceProfile)
+        q = scope_profiles(q, user_id=user_id, include_templates=True)
+        q = q.where(DeviceProfile.id == template_id)
+        row = self.session.execute(q).scalars().first()
+        if not row or not row.is_template:
+            raise NotFoundError("template_not_found")
+        return row
+
     def update_optimistic(self, owner_id: str, profile_id: str, data: UpdateProfile) -> DeviceProfile:
         current = self.get_scoped(owner_id, profile_id)
         if current.owner_id != owner_id:
@@ -177,3 +186,56 @@ class DeviceProfileRepository:
             .values(deleted_at=func.now())
         )
         self.session.flush()
+
+    def clone_from_template(self, owner_id: str, req: CloneFromTemplate) -> DeviceProfile:
+        tmpl = self.get_template_readable(owner_id, req.template_id)
+        pid = f"prof_{uuid.uuid4().hex[:12]}"
+        name = (req.overrides.name if req.overrides and req.overrides.name is not None else f"{tmpl.name} Copy")
+        device_type = (req.overrides.device_type if req.overrides and req.overrides.device_type is not None else tmpl.device_type)
+        width = (req.overrides.window.width if req.overrides and req.overrides.window is not None else tmpl.width)
+        height = (req.overrides.window.height if req.overrides and req.overrides.window is not None else tmpl.height)
+        user_agent = (req.overrides.user_agent if req.overrides and req.overrides.user_agent is not None else tmpl.user_agent)
+        country = (req.overrides.country if req.overrides and req.overrides.country is not None else tmpl.country)
+        custom_headers = (
+            headers_list_to_json(req.overrides.custom_headers)
+            if req.overrides and req.overrides.custom_headers is not None
+            else tmpl.custom_headers
+        )
+        dp = DeviceProfile(
+            id=pid,
+            owner_id=owner_id,
+            name=name,
+            device_type=device_type,
+            width=width,
+            height=height,
+            user_agent=user_agent,
+            country=country,
+            custom_headers=custom_headers,
+            is_template=False,
+            visibility=Visibility.private,
+        )
+        self.session.add(dp)
+        try:
+            self.session.flush()
+        except IntegrityError as e:
+            raise ConflictError(str(e))
+        snap = {
+            "id": dp.id,
+            "owner_id": dp.owner_id,
+            "name": dp.name,
+            "device_type": dp.device_type.value,
+            "window": {"width": dp.width, "height": dp.height},
+            "user_agent": dp.user_agent,
+            "country": dp.country,
+            "custom_headers": dp.custom_headers,
+            "is_template": dp.is_template,
+            "visibility": dp.visibility.value,
+            "version": dp.version,
+        }
+        self.session.add(
+            DeviceProfileVersion(
+                profile_id=dp.id, version=1, snapshot=snap, changed_by=owner_id
+            )
+        )
+        self.session.flush()
+        return dp
