@@ -1,0 +1,145 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
+from sqlalchemy.orm import Session
+
+from app.db.session import fastapi_session
+from app.orchestrator.orchestrator import PipelineOrchestrator
+from app.profiles.dto import CreateProfile, UpdateProfile
+from app.profiles.pipeline import (
+    CreateExecutor,
+    CreateRequest,
+    CreateValidator,
+    DeleteExecutor,
+    DeleteRequest,
+    DeleteValidator,
+    GetExecutor,
+    GetRequest,
+    GetValidator,
+    IdentityResponse,
+    ListExecutor,
+    ListRequest,
+    PatchExecutor,
+    PatchRequest,
+    PatchValidator,
+)
+from app.profiles.repository import DeviceProfileRepository, NotFoundError, PreconditionFailed, ConflictError
+from app.core.idempotency import IdempotencyStore
+
+
+router = APIRouter(prefix="/v1/device-profiles", tags=["device-profiles"])
+
+
+def _repo(session: Session) -> DeviceProfileRepository:
+    return DeviceProfileRepository(session)
+
+
+def _user_id(request: Request) -> str:
+    uid = getattr(request.state, "user_id", None)
+    if not uid:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    return uid
+
+
+@router.post("/")
+def create_profile(payload: CreateProfile, request: Request, session: Session = Depends(fastapi_session)):
+    repo = _repo(session)
+    store = IdempotencyStore(session)
+    orch = PipelineOrchestrator[CreateRequest, object](
+        validators=[CreateValidator()],
+        executors=[CreateExecutor(repo)],
+        response_transformers=[IdentityResponse()],
+    )
+    try:
+        owner_id = _user_id(request)
+        idem_key = request.headers.get("Idempotency-Key")
+        if idem_key:
+            cached = store.get(owner_id, idem_key)
+            if cached is not None:
+                return cached
+        resp = orch.run(CreateRequest(owner_id=owner_id, payload=payload))
+        if idem_key:
+            payload_json = jsonable_encoder(resp)
+            store.save(owner_id, idem_key, payload_json)
+        session.commit()
+        return resp
+    except ConflictError:
+        raise HTTPException(status_code=409, detail="conflict")
+
+
+@router.get("/{profile_id}")
+def get_profile(profile_id: str, request: Request, session: Session = Depends(fastapi_session)):
+    repo = _repo(session)
+    orch = PipelineOrchestrator[GetRequest, object](
+        validators=[GetValidator()],
+        executors=[GetExecutor(repo)],
+        response_transformers=[IdentityResponse()],
+    )
+    try:
+        return orch.run(GetRequest(user_id=_user_id(request), profile_id=profile_id))
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="not_found")
+
+
+@router.get("/")
+def list_profiles(
+    request: Request,
+    is_template: bool | None = None,
+    device_type: str | None = None,
+    country: str | None = None,
+    q: str | None = None,
+    limit: int = 20,
+    cursor: str | None = None,
+    session: Session = Depends(fastapi_session),
+):
+    repo = _repo(session)
+    orch = PipelineOrchestrator[ListRequest, object](
+        executors=[ListExecutor(repo)],
+        response_transformers=[IdentityResponse()],
+    )
+    return orch.run(
+        ListRequest(
+            user_id=_user_id(request),
+            is_template=is_template,
+            device_type=device_type,
+            country=country,
+            q=q,
+            limit=limit,
+            cursor=cursor,
+        )
+    )
+
+
+@router.patch("/{profile_id}")
+def patch_profile(profile_id: str, payload: UpdateProfile, request: Request, session: Session = Depends(fastapi_session)):
+    repo = _repo(session)
+    orch = PipelineOrchestrator[PatchRequest, object](
+        validators=[PatchValidator()],
+        executors=[PatchExecutor(repo)],
+        response_transformers=[IdentityResponse()],
+    )
+    try:
+        out = orch.run(PatchRequest(owner_id=_user_id(request), profile_id=profile_id, payload=payload))
+        session.commit()
+        return out
+    except PreconditionFailed:
+        raise HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="version_mismatch")
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="not_found")
+    except ConflictError:
+        raise HTTPException(status_code=409, detail="conflict")
+
+
+@router.delete("/{profile_id}")
+def delete_profile(profile_id: str, request: Request, session: Session = Depends(fastapi_session)):
+    repo = _repo(session)
+    orch = PipelineOrchestrator[DeleteRequest, object](
+        validators=[DeleteValidator()],
+        executors=[DeleteExecutor(repo)],
+        response_transformers=[IdentityResponse()],
+    )
+    try:
+        out = orch.run(DeleteRequest(owner_id=_user_id(request), profile_id=profile_id))
+        session.commit()
+        return out
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="not_found")

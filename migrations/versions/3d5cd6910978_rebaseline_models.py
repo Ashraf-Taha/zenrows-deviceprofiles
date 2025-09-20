@@ -1,8 +1,8 @@
-"""baseline
+"""rebaseline models
 
-Revision ID: c20ba405a79e
+Revision ID: 3d5cd6910978
 Revises: 
-Create Date: 2025-09-20 17:10:56.157273
+Create Date: 2025-09-20 22:48:57.793968
 
 """
 from alembic import op
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'c20ba405a79e'
+revision = '3d5cd6910978'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -30,12 +30,14 @@ def upgrade() -> None:
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('user_id', sa.String(), nullable=False),
     sa.Column('key_hash', sa.LargeBinary(), nullable=False),
+    sa.Column('key_prefix', sa.String(length=12), nullable=False),
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('revoked_at', sa.TIMESTAMP(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_api_keys_key_prefix'), 'api_keys', ['key_prefix'], unique=False)
     op.create_table('device_profiles',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('owner_id', sa.String(), nullable=False),
@@ -91,6 +93,7 @@ def downgrade() -> None:
     op.drop_index('idx_profiles_tmpl', table_name='device_profiles', postgresql_where=sa.text('deleted_at IS NULL'))
     op.drop_index('idx_profiles_owner', table_name='device_profiles', postgresql_where=sa.text('deleted_at IS NULL'))
     op.drop_table('device_profiles')
+    op.drop_index(op.f('ix_api_keys_key_prefix'), table_name='api_keys')
     op.drop_table('api_keys')
     op.drop_table('users')
     # ### end Alembic commands ###

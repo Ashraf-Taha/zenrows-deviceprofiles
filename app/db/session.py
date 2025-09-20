@@ -35,3 +35,16 @@ def get_session() -> Iterator[Session]:
     eng = _get_engine()
     with Session(eng) as s:
         yield s
+
+
+def fastapi_session() -> Iterator[Session]:
+    eng = _get_engine()
+    s = Session(eng)
+    try:
+        yield s
+        s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
