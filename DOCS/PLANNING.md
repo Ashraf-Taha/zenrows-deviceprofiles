@@ -5,7 +5,7 @@
 **What we’re building:**  
 An API to create, read, update, list, and soft-delete **Device Profiles** used by scrapers. A profile includes device type, window size, user agent, country, and optional custom headers. Profiles can be cloned from curated templates. Every change bumps a version and we keep an audit snapshot.
 
-**Outcomes for the MVP:**  
+**Outcomes for the MVP:**
 - Clean, maintainable API with basic security and solid validation  
 - PostgreSQL schema + migrations; soft delete; simple versioning  
 - Pagination and filters for lists  
@@ -36,7 +36,7 @@ An API to create, read, update, list, and soft-delete **Device Profiles** used b
 ---
 
 ## 1) Milestones (bird’s eye)
-1. M0 — Repo & local environment  
+1. M0 — Repo & local environment (DONE)
 2. **M1 — Database schema & migrations**  
 3. **M2 — Auth module (API keys + owner scoping)** ← expanded with concrete steps  
 4. M3 — Core CRUD for Device Profiles  
