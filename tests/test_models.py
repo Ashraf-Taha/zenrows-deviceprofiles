@@ -1,5 +1,4 @@
 from app.db.base import Base
-from app.db import models
 
 
 def test_given_models_when_metadata_collected_then_tables_present():

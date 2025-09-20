@@ -6,15 +6,12 @@ from sqlalchemy import (
     TIMESTAMP,
     Boolean,
     CheckConstraint,
-    Column,
     Enum,
     ForeignKey,
     Index,
     Integer,
-    PrimaryKeyConstraint,
     String,
     Text,
-    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -45,6 +42,7 @@ class ApiKey(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
     key_hash: Mapped[bytes] = mapped_column(nullable=False)
+    key_prefix: Mapped[str] = mapped_column(String(12), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=text("now()"), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))

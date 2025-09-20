@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="info", alias="LOG_LEVEL")
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
 

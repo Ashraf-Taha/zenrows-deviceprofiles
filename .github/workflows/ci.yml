@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+      - name: Ruff
+        run: |
+          .venv/bin/ruff check . || ruff check .
+      - name: Mypy
+        run: |
+          .venv/bin/mypy app || mypy app
+      - name: Tests with coverage (added modules)
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: postgres
+        run: |
+          pytest -q -p pytest_cov --cov=app.auth --cov=app.db.scoping --cov=app.orchestrator \
+                 --cov-report=term-missing --cov-fail-under=100

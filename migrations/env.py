@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from dotenv import load_dotenv
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
@@ -9,6 +10,7 @@ from app.db.base import Base
 from app.db import models  # noqa: F401
 
 config = context.config
+load_dotenv()
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
