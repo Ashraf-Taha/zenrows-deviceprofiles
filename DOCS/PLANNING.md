@@ -37,8 +37,8 @@ An API to create, read, update, list, and soft-delete **Device Profiles** used b
 
 ## 1) Milestones (bird’s eye)
 1. M0 — Repo & local environment (DONE)
-2. **M1 — Database schema & migrations**  
-3. **M2 — Auth module (API keys + owner scoping)** ← expanded with concrete steps  
+2. M1 — Database schema & migrations (DONE)
+3. M2 — Auth module (API keys + owner scoping) <- expanded with concrete steps  
 4. M3 — Core CRUD for Device Profiles  
 5. M4 — Templates & clone  
 6. M5 — Validation, filters, pagination  

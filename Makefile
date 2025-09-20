@@ -20,6 +20,22 @@ dev: install
 test: install
 	$(VENV)/Scripts/pytest.exe -q
 
+.PHONY: migrate-up
+migrate-up: install
+	$(VENV)/Scripts/alembic.exe upgrade head
+
+.PHONY: migrate-down
+migrate-down: install
+	$(VENV)/Scripts/alembic.exe downgrade base
+
+.PHONY: migrate-rev
+migrate-rev: install
+	$(VENV)/Scripts/alembic.exe revision -m "$$m"
+
+.PHONY: makemigrations
+makemigrations: install
+	$(VENV)/Scripts/alembic.exe revision --autogenerate -m "$$m"
+
 .PHONY: lint
 lint: install
 	$(VENV)/Scripts/ruff.exe check .

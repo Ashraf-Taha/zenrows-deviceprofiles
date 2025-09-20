@@ -1,5 +1,3 @@
-from typing import Any
-
 from app.orchestrator.base import (
     BaseExecutor,
     BaseRequestTransformer,
