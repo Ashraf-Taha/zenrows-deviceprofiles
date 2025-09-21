@@ -6,11 +6,27 @@ services:
       POSTGRES_DB: zenrows
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d zenrows"]
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 5s
+  api:
+    build: .
+    container_name: zenrows-api
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: zenrows
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      PORT: "8080"
+      LOG_LEVEL: info
+      SEED_TEMPLATES: "true"
+      SEED_API_KEY: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8088:8080"

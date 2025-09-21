@@ -17,7 +17,17 @@ from app.db.session import get_session
 
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in {"/healthz", "/readyz"}:
+        # Allow unauthenticated access to health and documentation endpoints
+        open_paths = {
+            "/healthz",
+            "/readyz",
+            "/openapi.json",
+            "/docs",
+            "/docs/",
+            "/docs/oauth2-redirect",
+            "/redoc",
+        }
+        if request.url.path in open_paths:
             return await call_next(request)
         key = request.headers.get("X-API-Key")
         if not key:
