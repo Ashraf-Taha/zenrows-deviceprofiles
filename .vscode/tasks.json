@@ -12,6 +12,24 @@
 			},
 			"group": "test",
 			"problemMatcher": []
+		},
+		{
+			"label": "Tests: Pytest (venv)",
+			"type": "shell",
+			"command": ".\\.venv\\Scripts\\python.exe -m pytest -q",
+			"group": "test"
+		},
+		{
+			"label": "Tests: Pytest (venv)",
+			"type": "shell",
+			"command": ".\\.venv\\Scripts\\python.exe -m pytest -q",
+			"group": "test"
+		},
+		{
+			"label": "Tests: Pytest (venv)",
+			"type": "shell",
+			"command": ".\\.venv\\Scripts\\python.exe -m pytest -q",
+			"group": "test"
 		}
 	]
 }

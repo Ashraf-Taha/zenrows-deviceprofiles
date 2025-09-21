@@ -1,8 +1,9 @@
 import uuid
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Tuple
+from datetime import datetime
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import and_, select, update, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -103,6 +104,35 @@ class DeviceProfileRepository:
         q = q.limit(filters.limit)
         rows = self.session.execute(q).scalars().all()
         return rows
+
+    def list_scoped_page(self, user_id: str, filters: ListFilters) -> tuple[List[DeviceProfile], Optional[tuple[datetime, str]]]:
+        q = select(DeviceProfile)
+        q = scope_profiles(q, user_id=user_id, include_templates=True)
+        if filters.is_template is not None:
+            q = q.where(DeviceProfile.is_template.is_(filters.is_template))
+        if filters.device_type is not None:
+            q = q.where(DeviceProfile.device_type == filters.device_type)
+        if filters.country is not None:
+            q = q.where(DeviceProfile.country == filters.country)
+        if filters.q is not None:
+            q = q.where(DeviceProfile.name.ilike(f"{filters.q}%"))
+        if filters.cursor is not None:
+            last_created_at, last_id = filters.cursor
+            q = q.where(
+                or_(
+                    DeviceProfile.created_at > last_created_at,
+                    and_(DeviceProfile.created_at == last_created_at, DeviceProfile.id > last_id),
+                )
+            )
+        q = q.order_by(DeviceProfile.created_at, DeviceProfile.id)
+        q = q.limit(filters.limit + 1)
+        items = self.session.execute(q).scalars().all()
+        next_token: Optional[tuple[datetime, str]] = None
+        if len(items) > filters.limit:
+            last = items[filters.limit]
+            next_token = (last.created_at, last.id)
+            items = items[: filters.limit]
+        return items, next_token
 
     def get_template_readable(self, user_id: str, template_id: str) -> DeviceProfile:
         q = select(DeviceProfile)

@@ -1,5 +1,7 @@
-from dataclasses import dataclass
-from typing import List, Optional
+from dataclasses import dataclass, replace
+from typing import List, Optional, Tuple
+from datetime import datetime
+import base64
 
 from app.orchestrator.base import (
     BaseExecutor,
@@ -9,6 +11,8 @@ from app.orchestrator.base import (
 )
 from app.profiles.dto import CreateProfile, UpdateProfile, ProfileResponse, CloneFromTemplate
 from app.profiles.repository import DeviceProfileRepository, ListFilters
+from app.profiles.dto import ALLOWED_COUNTRIES
+from app.db.models import DeviceType
 
 
 @dataclass
@@ -66,12 +70,42 @@ class ListRequest:
     q: Optional[str] = None
     limit: int = 20
     cursor: Optional[str] = None
+    cursor_decoded: Optional[Tuple[datetime, str]] = None
 
 
 @dataclass
 class ListResponse:
     data: List[ProfileResponse]
     next_cursor: Optional[str]
+
+class ListValidator(BaseValidator[ListRequest]):
+    def validate(self, request: ListRequest) -> None:
+        if request.limit < 1 or request.limit > 100:
+            raise ValueError("invalid_limit")
+        if request.device_type is not None and request.device_type not in {e.value for e in DeviceType}:
+            raise ValueError("invalid_device_type")
+        if request.country is not None:
+            c = request.country.strip().lower()
+            if len(c) != 2 or c not in ALLOWED_COUNTRIES:
+                raise ValueError("invalid_country")
+
+class ListRequestTransformer(BaseRequestTransformer[ListRequest]):
+    def transform(self, request: ListRequest) -> ListRequest:
+        country = request.country.strip().lower() if request.country is not None else None
+        device_type = request.device_type.strip().lower() if request.device_type is not None else None
+        q = request.q.strip() if request.q is not None else None
+        decoded: Optional[Tuple[datetime, str]] = None
+        if request.cursor:
+            try:
+                raw = base64.b64decode(request.cursor).decode("utf-8")
+                parts = raw.split("|", 1)
+                if len(parts) != 2:
+                    raise ValueError
+                ts = datetime.fromisoformat(parts[0])
+                decoded = (ts, parts[1])
+            except Exception:
+                raise ValueError("invalid_cursor")
+        return replace(request, country=country, device_type=device_type, q=q, cursor_decoded=decoded)
 
 
 class ListExecutor(BaseExecutor[ListRequest, ListResponse]):
@@ -85,11 +119,17 @@ class ListExecutor(BaseExecutor[ListRequest, ListResponse]):
             country=request.country,
             q=request.q,
             limit=request.limit,
+            cursor=request.cursor_decoded,
         )
-        rows = self.repo.list_scoped(request.user_id, filters)
+        rows, next_t = self.repo.list_scoped_page(request.user_id, filters)
+        next_cursor = None
+        if next_t is not None:
+            iso = next_t[0].isoformat()
+            token = base64.b64encode(f"{iso}|{next_t[1]}".encode("utf-8")).decode("utf-8")
+            next_cursor = token
         return ListResponse(
             data=[ProfileResponse.from_model(r) for r in rows],
-            next_cursor=None,
+            next_cursor=next_cursor,
         )
 
 

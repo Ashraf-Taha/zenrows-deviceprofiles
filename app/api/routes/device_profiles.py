@@ -22,6 +22,8 @@ from app.profiles.pipeline import (
     IdentityResponse,
     ListExecutor,
     ListRequest,
+    ListValidator,
+    ListRequestTransformer,
     PatchExecutor,
     PatchRequest,
     PatchValidator,
@@ -111,20 +113,25 @@ def list_profiles(
 ):
     repo = _repo(session)
     orch = PipelineOrchestrator[ListRequest, object](
+        validators=[ListValidator()],
+        request_transformers=[ListRequestTransformer()],
         executors=[ListExecutor(repo)],
         response_transformers=[IdentityResponse()],
     )
-    return orch.run(
-        ListRequest(
-            user_id=_user_id(request),
-            is_template=is_template,
-            device_type=device_type,
-            country=country,
-            q=q,
-            limit=limit,
-            cursor=cursor,
+    try:
+        return orch.run(
+            ListRequest(
+                user_id=_user_id(request),
+                is_template=is_template,
+                device_type=device_type,
+                country=country,
+                q=q,
+                limit=limit,
+                cursor=cursor,
+            )
         )
-    )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid_parameters")
 
 
 @router.patch("/{profile_id}")
