@@ -1,7 +1,5 @@
 import base64
-from datetime import datetime, timedelta, timezone
-
-import pytest
+from datetime import datetime
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -9,7 +7,7 @@ from app.db.session import get_session
 from app.profiles.dto import CreateProfile, Window
 from app.db.models import DeviceType
 from app.profiles.repository import DeviceProfileRepository, ListFilters
-from tests.test_profiles import seed_env
+# seed_env provided via tests/conftest.py
 
 
 def _b64(ts: datetime, pid: str) -> str:
@@ -68,13 +66,13 @@ def test_repository_cursor_pagination_orders_and_advances(seed_env):
     raw, uid = seed_env
     with get_session() as s:
         repo = DeviceProfileRepository(s)
-        p1 = repo.create(uid, CreateProfile(name="A", device_type=DeviceType.desktop, window=Window(width=1, height=1), user_agent="ua", country="us"))
-        s.flush()
-        p2 = repo.create(uid, CreateProfile(name="B", device_type=DeviceType.desktop, window=Window(width=2, height=2), user_agent="ua", country="us"))
-        s.flush()
-        rows, nxt = repo.list_scoped_page(uid, ListFilters(limit=1))
-        assert len(rows) == 1
-        assert nxt is not None
-        rows2, nxt2 = repo.list_scoped_page(uid, ListFilters(limit=1, cursor=nxt))
-        assert len(rows2) == 1
-        assert not nxt2 or nxt2[1] != nxt[1]
+    repo.create(uid, CreateProfile(name="A", device_type=DeviceType.desktop, window=Window(width=1, height=1), user_agent="ua", country="us"))
+    s.flush()
+    repo.create(uid, CreateProfile(name="B", device_type=DeviceType.desktop, window=Window(width=2, height=2), user_agent="ua", country="us"))
+    s.flush()
+    rows, nxt = repo.list_scoped_page(uid, ListFilters(limit=1))
+    assert len(rows) == 1
+    assert nxt is not None
+    rows2, nxt2 = repo.list_scoped_page(uid, ListFilters(limit=1, cursor=nxt))
+    assert len(rows2) == 1
+    assert not nxt2 or nxt2[1] != nxt[1]

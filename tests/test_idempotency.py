@@ -1,7 +1,6 @@
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from tests.test_profiles import seed_env  # reuse fixture
 
 
 def test_given_same_idempotency_key_when_post_then_same_response(seed_env):

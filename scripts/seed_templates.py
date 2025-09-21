@@ -1,4 +1,4 @@
-import uuid
+ # no uuid usage
 
 from sqlalchemy import text, select
 

@@ -8,14 +8,11 @@ from sqlalchemy import create_engine, text
 from app.main import create_app
 from app.core.idempotency import IdempotencyStore
 from app.db.session import get_session
-from app.db.models import IdempotencyKey
 from app.profiles.dto import HeaderKV, CreateProfile, UpdateProfile, ProfileResponse, Window, headers_list_to_json
-from app.db.models import DeviceProfile, DeviceType, Visibility
+from app.db.models import DeviceType, Visibility
 from app.profiles.repository import DeviceProfileRepository, NotFoundError, ConflictError
 from app.profiles.pipeline import GetValidator, GetRequest, DeleteValidator, DeleteRequest, PatchValidator, PatchRequest
-from fastapi import Request
-from sqlalchemy.orm import Session
-from tests.test_profiles import seed_env
+# seed_env comes from tests/conftest.py
 
 
 def test_given_duplicate_name_when_create_then_conflict(seed_env):

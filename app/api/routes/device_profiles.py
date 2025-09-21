@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from app.db.session import fastapi_session
 from app.orchestrator.orchestrator import PipelineOrchestrator
-from app.profiles.dto import CreateProfile, UpdateProfile, CloneFromTemplate
+from app.profiles.dto import CreateProfile, UpdateProfile, CloneFromTemplate, ProfileResponse, VersionSnapshotResponse, VersionMeta
 from app.profiles.pipeline import (
     CreateExecutor,
     CreateRequest,
@@ -23,6 +23,7 @@ from app.profiles.pipeline import (
     IdentityResponse,
     ListExecutor,
     ListRequest,
+    ListResponse,
     ListValidator,
     ListRequestTransformer,
     PatchExecutor,
@@ -37,6 +38,7 @@ from app.profiles.pipeline import (
     VersionsPageExecutor,
     VersionsPageRequest,
     VersionsPageValidator,
+    VersionsPageResponse,
 )
 from app.profiles.repository import DeviceProfileRepository, NotFoundError, PreconditionFailed, ConflictError
 from app.core.idempotency import IdempotencyStore
@@ -69,20 +71,20 @@ def create_profile(payload: dict, request: Request, session: Session = Depends(f
                 return cached
         if "template_id" in payload:
             clone = CloneFromTemplate.model_validate(payload)
-            orch = PipelineOrchestrator[CloneRequest, object](
+            clone_orch = PipelineOrchestrator[CloneRequest, ProfileResponse](
                 validators=[CloneValidator()],
                 executors=[CloneExecutor(repo)],
-                response_transformers=[IdentityResponse()],
+                response_transformers=[IdentityResponse[ProfileResponse]()],
             )
-            resp = orch.run(CloneRequest(owner_id=owner_id, payload=clone))
+            resp = clone_orch.run(CloneRequest(owner_id=owner_id, payload=clone))
         else:
             create = CreateProfile.model_validate(payload)
-            orch = PipelineOrchestrator[CreateRequest, object](
+            create_orch = PipelineOrchestrator[CreateRequest, ProfileResponse](
                 validators=[CreateValidator()],
                 executors=[CreateExecutor(repo)],
-                response_transformers=[IdentityResponse()],
+                response_transformers=[IdentityResponse[ProfileResponse]()],
             )
-            resp = orch.run(CreateRequest(owner_id=owner_id, payload=create))
+            resp = create_orch.run(CreateRequest(owner_id=owner_id, payload=create))
         if idem_key:
             payload_json = jsonable_encoder(resp)
             store.save(owner_id, idem_key, payload_json)
@@ -99,10 +101,10 @@ def create_profile(payload: dict, request: Request, session: Session = Depends(f
 @router.get("/{profile_id}")
 def get_profile(profile_id: str, request: Request, session: Session = Depends(fastapi_session)):
     repo = _repo(session)
-    orch = PipelineOrchestrator[GetRequest, object](
+    orch = PipelineOrchestrator[GetRequest, ProfileResponse](
         validators=[GetValidator()],
         executors=[GetExecutor(repo)],
-        response_transformers=[IdentityResponse()],
+        response_transformers=[IdentityResponse[ProfileResponse]()],
     )
     try:
         resp = orch.run(GetRequest(user_id=_user_id(request), profile_id=profile_id))
@@ -127,11 +129,11 @@ def list_profiles(
     session: Session = Depends(fastapi_session),
 ):
     repo = _repo(session)
-    orch = PipelineOrchestrator[ListRequest, object](
+    orch = PipelineOrchestrator[ListRequest, ListResponse](
         validators=[ListValidator()],
         request_transformers=[ListRequestTransformer()],
         executors=[ListExecutor(repo)],
-        response_transformers=[IdentityResponse()],
+        response_transformers=[IdentityResponse[ListResponse]()],
     )
     try:
         return orch.run(
@@ -152,10 +154,10 @@ def list_profiles(
 @router.patch("/{profile_id}")
 def patch_profile(profile_id: str, payload: UpdateProfile, request: Request, session: Session = Depends(fastapi_session)):
     repo = _repo(session)
-    orch = PipelineOrchestrator[PatchRequest, object](
+    orch = PipelineOrchestrator[PatchRequest, ProfileResponse](
         validators=[PatchValidator()],
         executors=[PatchExecutor(repo)],
-        response_transformers=[IdentityResponse()],
+        response_transformers=[IdentityResponse[ProfileResponse]()],
     )
     try:
         out = orch.run(PatchRequest(owner_id=_user_id(request), profile_id=profile_id, payload=payload))
@@ -172,10 +174,10 @@ def patch_profile(profile_id: str, payload: UpdateProfile, request: Request, ses
 @router.delete("/{profile_id}")
 def delete_profile(profile_id: str, request: Request, session: Session = Depends(fastapi_session)):
     repo = _repo(session)
-    orch = PipelineOrchestrator[DeleteRequest, object](
+    orch = PipelineOrchestrator[DeleteRequest, dict](
         validators=[DeleteValidator()],
         executors=[DeleteExecutor(repo)],
-        response_transformers=[IdentityResponse()],
+        response_transformers=[IdentityResponse[dict]()],
     )
     try:
         out = orch.run(DeleteRequest(owner_id=_user_id(request), profile_id=profile_id))
@@ -188,10 +190,10 @@ def delete_profile(profile_id: str, request: Request, session: Session = Depends
 @router.get("/{profile_id}/versions")
 def list_profile_versions(profile_id: str, request: Request, session: Session = Depends(fastapi_session)):
     repo = _repo(session)
-    orch = PipelineOrchestrator[VersionsRequest, object](
+    orch = PipelineOrchestrator[VersionsRequest, list[VersionMeta]](
         validators=[VersionsValidator()],
         executors=[VersionsExecutor(repo)],
-        response_transformers=[IdentityResponse()],
+        response_transformers=[IdentityResponse[list[VersionMeta]]()],
     )
     try:
         return orch.run(VersionsRequest(user_id=_user_id(request), profile_id=profile_id))
@@ -210,10 +212,10 @@ def list_profile_versions_page(
     session: Session = Depends(fastapi_session),
 ):
     repo = _repo(session)
-    orch = PipelineOrchestrator[VersionsPageRequest, object](
+    orch = PipelineOrchestrator[VersionsPageRequest, VersionsPageResponse](
         validators=[VersionsPageValidator()],
         executors=[VersionsPageExecutor(repo)],
-        response_transformers=[IdentityResponse()],
+        response_transformers=[IdentityResponse[VersionsPageResponse]()],
     )
     try:
         return orch.run(VersionsPageRequest(user_id=_user_id(request), profile_id=profile_id, limit=limit, cursor=cursor))
@@ -226,10 +228,10 @@ def list_profile_versions_page(
 @router.get("/{profile_id}/versions/{version}")
 def get_profile_version(profile_id: str, version: int, request: Request, session: Session = Depends(fastapi_session)):
     repo = _repo(session)
-    orch = PipelineOrchestrator[VersionRequest, object](
+    orch = PipelineOrchestrator[VersionRequest, VersionSnapshotResponse](
         validators=[VersionValidator()],
         executors=[VersionExecutor(repo)],
-        response_transformers=[IdentityResponse()],
+        response_transformers=[IdentityResponse[VersionSnapshotResponse]()],
     )
     try:
         return orch.run(VersionRequest(user_id=_user_id(request), profile_id=profile_id, version=version))

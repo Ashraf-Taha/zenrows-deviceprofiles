@@ -1,5 +1,5 @@
 from dataclasses import dataclass, replace
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, TypeVar, Generic
 from datetime import datetime
 import base64
 
@@ -36,8 +36,11 @@ class CreateExecutor(BaseExecutor[CreateRequest, ProfileResponse]):
         return ProfileResponse.from_model(dp)
 
 
-class IdentityResponse(BaseResponseTransformer[ProfileResponse]):
-    def transform(self, response: ProfileResponse) -> ProfileResponse:
+T = TypeVar("T")
+
+
+class IdentityResponse(BaseResponseTransformer[T], Generic[T]):
+    def transform(self, response: T) -> T:
         return response
 
 

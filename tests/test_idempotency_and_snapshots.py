@@ -8,7 +8,6 @@ from app.db.session import get_session
 from app.profiles.dto import UpdateProfile, Window
 from app.profiles.pipeline import IdentityResponse
 from app.db.models import DeviceType
-from tests.test_profiles import seed_env
 
 
 def test_given_positive_ttl_when_get_then_returns_response(seed_env):

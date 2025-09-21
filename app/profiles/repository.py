@@ -1,6 +1,6 @@
 import uuid
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from datetime import datetime
 
 from sqlalchemy import and_, select, update, or_
@@ -33,7 +33,7 @@ class ListFilters:
     country: Optional[str] = None
     q: Optional[str] = None
     limit: int = 20
-    cursor: Optional[Tuple[str, str]] = None
+    cursor: Optional[Tuple[datetime, str]] = None
 
 
 class DeviceProfileRepository:
@@ -103,7 +103,7 @@ class DeviceProfileRepository:
             q = q.where(DeviceProfile.name.ilike(f"{filters.q}%"))
         q = q.order_by(DeviceProfile.created_at, DeviceProfile.id)
         q = q.limit(filters.limit)
-        rows = self.session.execute(q).scalars().all()
+        rows = list(self.session.execute(q).scalars().all())
         return rows
 
     def list_scoped_page(self, user_id: str, filters: ListFilters) -> tuple[List[DeviceProfile], Optional[tuple[datetime, str]]]:
@@ -127,7 +127,7 @@ class DeviceProfileRepository:
             )
         q = q.order_by(DeviceProfile.created_at, DeviceProfile.id)
         q = q.limit(filters.limit + 1)
-        items = self.session.execute(q).scalars().all()
+        items = list(self.session.execute(q).scalars().all())
         next_token: Optional[tuple[datetime, str]] = None
         if len(items) > filters.limit:
             last = items[filters.limit]
