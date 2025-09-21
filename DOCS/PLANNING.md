@@ -41,8 +41,8 @@ An API to create, read, update, list, and soft-delete **Device Profiles** used b
 3. M2 — Auth module (API keys + owner scoping) <- expanded with concrete steps  (DONE)
 4. M3 — Core CRUD for Device Profiles (DONE)
 5. M4 — Templates & clone (DONE)
-6. M5 — Validation, filters, pagination  
-7. M6 — Versioning & audit snapshots  
+6. M5 — Validation, filters, pagination (DONE)
+7. M6 — Versioning & audit snapshots (DONE)
 8. M7 — Error model & security polish  
 9. M8 — **Observability on CloudWatch** (+ X-Ray)  
 10. M9 — Tests (unit + integration)  

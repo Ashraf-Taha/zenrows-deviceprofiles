@@ -13,6 +13,7 @@ from app.profiles.dto import CreateProfile, UpdateProfile, ProfileResponse, Clon
 from app.profiles.repository import DeviceProfileRepository, ListFilters
 from app.profiles.dto import ALLOWED_COUNTRIES
 from app.db.models import DeviceType
+from app.profiles.dto import VersionMeta, VersionSnapshotResponse
 
 
 @dataclass
@@ -195,3 +196,77 @@ class CloneExecutor(BaseExecutor[CloneRequest, ProfileResponse]):
     def execute(self, request: CloneRequest) -> ProfileResponse:
         dp = self.repo.clone_from_template(request.owner_id, request.payload)
         return ProfileResponse.from_model(dp)
+
+
+@dataclass
+class VersionsRequest:
+    user_id: str
+    profile_id: str
+
+
+class VersionsValidator(BaseValidator[VersionsRequest]):
+    def validate(self, request: VersionsRequest) -> None:
+        if not request.profile_id:
+            raise ValueError("missing_id")
+
+
+class VersionsExecutor(BaseExecutor[VersionsRequest, List[VersionMeta]]):
+    def __init__(self, repo: DeviceProfileRepository) -> None:
+        self.repo = repo
+
+    def execute(self, request: VersionsRequest) -> List[VersionMeta]:
+        return self.repo.list_versions(request.user_id, request.profile_id)
+
+
+@dataclass
+class VersionRequest:
+    user_id: str
+    profile_id: str
+    version: int
+
+
+class VersionValidator(BaseValidator[VersionRequest]):
+    def validate(self, request: VersionRequest) -> None:
+        if not request.profile_id:
+            raise ValueError("missing_id")
+        if request.version is None or request.version < 1:
+            raise ValueError("invalid_version")
+
+
+class VersionExecutor(BaseExecutor[VersionRequest, VersionSnapshotResponse]):
+    def __init__(self, repo: DeviceProfileRepository) -> None:
+        self.repo = repo
+
+    def execute(self, request: VersionRequest) -> VersionSnapshotResponse:
+        return self.repo.get_version(request.user_id, request.profile_id, request.version)
+
+
+@dataclass
+class VersionsPageRequest:
+    user_id: str
+    profile_id: str
+    limit: int = 20
+    cursor: int | None = None
+
+
+@dataclass
+class VersionsPageResponse:
+    data: List[VersionMeta]
+    next_cursor: int | None
+
+
+class VersionsPageValidator(BaseValidator[VersionsPageRequest]):
+    def validate(self, request: VersionsPageRequest) -> None:
+        if not request.profile_id:
+            raise ValueError("missing_id")
+        if request.limit < 1 or request.limit > 100:
+            raise ValueError("invalid_limit")
+
+
+class VersionsPageExecutor(BaseExecutor[VersionsPageRequest, VersionsPageResponse]):
+    def __init__(self, repo: DeviceProfileRepository) -> None:
+        self.repo = repo
+
+    def execute(self, request: VersionsPageRequest) -> VersionsPageResponse:
+        items, next_cur = self.repo.list_versions_page(request.user_id, request.profile_id, request.limit, request.cursor)
+        return VersionsPageResponse(data=items, next_cursor=next_cur)

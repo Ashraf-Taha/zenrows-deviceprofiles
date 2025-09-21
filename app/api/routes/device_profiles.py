@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 from pydantic import ValidationError
@@ -27,6 +28,15 @@ from app.profiles.pipeline import (
     PatchExecutor,
     PatchRequest,
     PatchValidator,
+    VersionsExecutor,
+    VersionsRequest,
+    VersionsValidator,
+    VersionExecutor,
+    VersionRequest,
+    VersionValidator,
+    VersionsPageExecutor,
+    VersionsPageRequest,
+    VersionsPageValidator,
 )
 from app.profiles.repository import DeviceProfileRepository, NotFoundError, PreconditionFailed, ConflictError
 from app.core.idempotency import IdempotencyStore
@@ -95,7 +105,12 @@ def get_profile(profile_id: str, request: Request, session: Session = Depends(fa
         response_transformers=[IdentityResponse()],
     )
     try:
-        return orch.run(GetRequest(user_id=_user_id(request), profile_id=profile_id))
+        resp = orch.run(GetRequest(user_id=_user_id(request), profile_id=profile_id))
+        etag = str(resp.version)
+        inm = request.headers.get("If-None-Match")
+        if inm is not None and inm == etag:
+            return Response(status_code=304, headers={"ETag": etag})
+        return JSONResponse(content=jsonable_encoder(resp), headers={"ETag": etag})
     except NotFoundError:
         raise HTTPException(status_code=404, detail="not_found")
 
@@ -168,3 +183,57 @@ def delete_profile(profile_id: str, request: Request, session: Session = Depends
         return out
     except NotFoundError:
         raise HTTPException(status_code=404, detail="not_found")
+
+
+@router.get("/{profile_id}/versions")
+def list_profile_versions(profile_id: str, request: Request, session: Session = Depends(fastapi_session)):
+    repo = _repo(session)
+    orch = PipelineOrchestrator[VersionsRequest, object](
+        validators=[VersionsValidator()],
+        executors=[VersionsExecutor(repo)],
+        response_transformers=[IdentityResponse()],
+    )
+    try:
+        return orch.run(VersionsRequest(user_id=_user_id(request), profile_id=profile_id))
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="not_found")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid_parameters")
+
+
+@router.get("/{profile_id}/versions:page")
+def list_profile_versions_page(
+    profile_id: str,
+    request: Request,
+    limit: int = 20,
+    cursor: int | None = None,
+    session: Session = Depends(fastapi_session),
+):
+    repo = _repo(session)
+    orch = PipelineOrchestrator[VersionsPageRequest, object](
+        validators=[VersionsPageValidator()],
+        executors=[VersionsPageExecutor(repo)],
+        response_transformers=[IdentityResponse()],
+    )
+    try:
+        return orch.run(VersionsPageRequest(user_id=_user_id(request), profile_id=profile_id, limit=limit, cursor=cursor))
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="not_found")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid_parameters")
+
+
+@router.get("/{profile_id}/versions/{version}")
+def get_profile_version(profile_id: str, version: int, request: Request, session: Session = Depends(fastapi_session)):
+    repo = _repo(session)
+    orch = PipelineOrchestrator[VersionRequest, object](
+        validators=[VersionValidator()],
+        executors=[VersionExecutor(repo)],
+        response_transformers=[IdentityResponse()],
+    )
+    try:
+        return orch.run(VersionRequest(user_id=_user_id(request), profile_id=profile_id, version=version))
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="not_found")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid_parameters")

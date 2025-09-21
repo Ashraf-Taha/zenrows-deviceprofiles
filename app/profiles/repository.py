@@ -8,9 +8,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.db.models import DeviceProfile, DeviceProfileVersion, Visibility
+from app.db.models import DeviceProfile, DeviceProfileVersion, Visibility, DeviceType as DT
 from app.db.scoping import scope_profiles
-from app.profiles.dto import CreateProfile, UpdateProfile, headers_list_to_json, CloneFromTemplate
+from app.profiles.dto import CreateProfile, UpdateProfile, headers_list_to_json, CloneFromTemplate, VersionMeta
+from app.profiles.dto import VersionSnapshotResponse, Window, HeaderKV
 
 
 class ConflictError(Exception):
@@ -269,3 +270,69 @@ class DeviceProfileRepository:
         )
         self.session.flush()
         return dp
+
+    def list_versions(self, user_id: str, profile_id: str) -> List[VersionMeta]:
+        q = select(DeviceProfile)
+        q = scope_profiles(q, user_id=user_id, include_templates=True)
+        q = q.where(DeviceProfile.id == profile_id)
+        row = self.session.execute(q).scalars().first()
+        if not row:
+            raise NotFoundError("profile_not_found")
+        vq = select(DeviceProfileVersion.version, DeviceProfileVersion.changed_by, DeviceProfileVersion.changed_at).where(
+            DeviceProfileVersion.profile_id == profile_id
+        ).order_by(DeviceProfileVersion.version)
+        results = self.session.execute(vq).all()
+        return [VersionMeta(version=r[0], changed_by=r[1], changed_at=r[2]) for r in results]
+
+    def get_version(self, user_id: str, profile_id: str, version: int) -> VersionSnapshotResponse:
+        q = select(DeviceProfile)
+        q = scope_profiles(q, user_id=user_id, include_templates=True)
+        q = q.where(DeviceProfile.id == profile_id)
+        parent = self.session.execute(q).scalars().first()
+        if not parent:
+            raise NotFoundError("profile_not_found")
+        vq = select(DeviceProfileVersion).where(
+            and_(DeviceProfileVersion.profile_id == profile_id, DeviceProfileVersion.version == version)
+        )
+        row = self.session.execute(vq).scalars().first()
+        if not row:
+            raise NotFoundError("version_not_found")
+        snap = row.snapshot
+        headers = None
+        if snap.get("custom_headers"):
+            headers = [HeaderKV(key=k, value=str(v)) for k, v in snap["custom_headers"].items()]
+        return VersionSnapshotResponse(
+            id=snap["id"],
+            owner_id=snap["owner_id"],
+            name=snap["name"],
+            device_type=DT(snap["device_type"]),
+            window=Window(width=snap["window"]["width"], height=snap["window"]["height"]),
+            user_agent=snap["user_agent"],
+            country=snap["country"],
+            custom_headers=headers,
+            is_template=bool(snap["is_template"]),
+            visibility=Visibility(snap["visibility"]),
+            version=snap["version"],
+            changed_by=row.changed_by,
+            changed_at=row.changed_at,
+        )
+
+    def list_versions_page(self, user_id: str, profile_id: str, limit: int, cursor_version: Optional[int]) -> tuple[List[VersionMeta], Optional[int]]:
+        q = select(DeviceProfile)
+        q = scope_profiles(q, user_id=user_id, include_templates=True)
+        q = q.where(DeviceProfile.id == profile_id)
+        parent = self.session.execute(q).scalars().first()
+        if not parent:
+            raise NotFoundError("profile_not_found")
+        vq = select(DeviceProfileVersion.version, DeviceProfileVersion.changed_by, DeviceProfileVersion.changed_at).where(
+            DeviceProfileVersion.profile_id == profile_id
+        )
+        if cursor_version is not None:
+            vq = vq.where(DeviceProfileVersion.version > cursor_version)
+        vq = vq.order_by(DeviceProfileVersion.version).limit(limit + 1)
+        rows = self.session.execute(vq).all()
+        next_cursor: Optional[int] = None
+        if len(rows) > limit:
+            next_cursor = rows[limit][0]
+            rows = rows[:limit]
+        return [VersionMeta(version=r[0], changed_by=r[1], changed_at=r[2]) for r in rows], next_cursor

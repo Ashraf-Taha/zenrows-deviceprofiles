@@ -158,3 +158,25 @@ class CloneOverrides(BaseModel):
 class CloneFromTemplate(BaseModel):
     template_id: str
     overrides: Optional[CloneOverrides] = None
+
+
+class VersionMeta(BaseModel):
+    version: int
+    changed_by: str
+    changed_at: datetime
+
+
+class VersionSnapshotResponse(BaseModel):
+    id: str
+    owner_id: str
+    name: str
+    device_type: DeviceType
+    window: Window
+    user_agent: str
+    country: str
+    custom_headers: List[HeaderKV] | None
+    is_template: bool
+    visibility: Visibility
+    version: int
+    changed_by: str
+    changed_at: datetime
