@@ -7,8 +7,8 @@ Links to docs:
 - Project plan & milestones: `DOCS/PLANNING.md`
 
 Health endpoints:
-- GET http://127.0.0.1:8080/healthz → { "status": "ok" }
-- GET http://127.0.0.1:8080/readyz → { "status": "ready" }
+- GET http://localhost:8080/healthz → { "status": "ok" }
+- GET http://localhost:8080/readyz → { "status": "ready" }
 
 ## Table of contents
 
@@ -67,7 +67,7 @@ python .\scripts\seed_api_key.py
 python -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8080 --reload
 ```
 
-Visit Swagger UI at http://127.0.0.1:8080/docs
+Visit Swagger UI at http://localhost:8080/docs
 
 ## Quickstart (macOS/Linux)
 
@@ -90,7 +90,7 @@ uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8080 --reload
 
 ## Run with Docker Compose
 
-This brings up Postgres and the API. The API is exposed at http://localhost:8088.
+This brings up Postgres and the API. The API is exposed at http://localhost:8088/.
 
 ```bash
 docker compose up --build
@@ -104,7 +104,7 @@ Notes:
 ## API docs & testing in Swagger UI
 
 Swagger UI is available at:
-- Local run: http://127.0.0.1:8080/docs
+- Local run: http://localhost:8080/docs
 - Docker compose: http://localhost:8088/docs
 
 Steps to test in Swagger:
@@ -186,7 +186,7 @@ PowerShell quoting is different; examples below include both PowerShell and bash
 Create a profile (PowerShell):
 ```powershell
 $KEY = "<paste-your-api-key>"
-curl -s -X POST http://127.0.0.1:8080/v1/device-profiles `
+curl -s -X POST http://localhost:8080/v1/device-profiles `
 	-H "X-API-Key: $KEY" -H "Content-Type: application/json" `
 	--data '{"name":"Amazon Desktop","device_type":"desktop","window":{"width":1366,"height":768},"user_agent":"Mozilla/5.0","country":"gb"}'
 ```
@@ -194,7 +194,7 @@ curl -s -X POST http://127.0.0.1:8080/v1/device-profiles `
 Create a profile (bash):
 ```bash
 KEY=<paste-your-api-key>
-curl -s -X POST http://127.0.0.1:8080/v1/device-profiles \
+curl -s -X POST http://localhost:8080/v1/device-profiles \
 	-H "X-API-Key: $KEY" -H "Content-Type: application/json" \
 	-d '{"name":"Amazon Desktop","device_type":"desktop","window":{"width":1366,"height":768},"user_agent":"Mozilla/5.0","country":"gb"}'
 ```
@@ -202,7 +202,7 @@ curl -s -X POST http://127.0.0.1:8080/v1/device-profiles \
 Idempotent create (bash, note Idempotency-Key):
 ```bash
 KEY=<paste-your-api-key>
-curl -s -X POST http://127.0.0.1:8080/v1/device-profiles \
+curl -s -X POST http://localhost:8080/v1/device-profiles \
 	-H "X-API-Key: $KEY" -H "Idempotency-Key: abc123" -H "Content-Type: application/json" \
 	-d '{"name":"Idem Test","device_type":"desktop","window":{"width":800,"height":600},"user_agent":"Mozilla/5.0","country":"us"}'
 ```
@@ -210,14 +210,14 @@ curl -s -X POST http://127.0.0.1:8080/v1/device-profiles \
 Conditional GET using ETag (bash):
 ```bash
 KEY=<key>
-ETAG=$(curl -si -H "X-API-Key: $KEY" http://127.0.0.1:8080/v1/device-profiles | grep -i ETag | awk '{print $2}' | tr -d '\r')
-curl -i -H "X-API-Key: $KEY" -H "If-None-Match: $ETAG" http://127.0.0.1:8080/v1/device-profiles/<id>
+ETAG=$(curl -si -H "X-API-Key: $KEY" http://localhost:8080/v1/device-profiles | grep -i ETag | awk '{print $2}' | tr -d '\r')
+curl -i -H "X-API-Key: $KEY" -H "If-None-Match: $ETAG" http://localhost:8080/v1/device-profiles/<id>
 ```
 
 Patch with optimistic concurrency (include current version in body):
 ```bash
 KEY=<key>
-curl -s -X PATCH http://127.0.0.1:8080/v1/device-profiles/<id> \
+curl -s -X PATCH http://localhost:8080/v1/device-profiles/<id> \
 	-H "X-API-Key: $KEY" -H "Content-Type: application/json" \
 	-d '{"name":"New Name","version":3}'
 ```

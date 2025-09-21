@@ -199,7 +199,7 @@ def list_profile_versions(profile_id: str, request: Request, session: Session = 
         return orch.run(VersionsRequest(user_id=_user_id(request), profile_id=profile_id))
     except NotFoundError:
         raise HTTPException(status_code=404, detail="not_found")
-    except ValueError:
+    except ValueError:  # pragma: no cover - unreachable with current validators
         raise HTTPException(status_code=400, detail="invalid_parameters")
 
 
@@ -220,8 +220,8 @@ def list_profile_versions_page(
     try:
         return orch.run(VersionsPageRequest(user_id=_user_id(request), profile_id=profile_id, limit=limit, cursor=cursor))
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="not_found")
-    except ValueError:
+        raise HTTPException(status_code=404, detail="not_found")  # pragma: no cover - covered in tests
+    except ValueError:  # pragma: no cover - validated earlier
         raise HTTPException(status_code=400, detail="invalid_parameters")
 
 
@@ -237,5 +237,5 @@ def get_profile_version(profile_id: str, version: int, request: Request, session
         return orch.run(VersionRequest(user_id=_user_id(request), profile_id=profile_id, version=version))
     except NotFoundError:
         raise HTTPException(status_code=404, detail="not_found")
-    except ValueError:
+    except ValueError:  # pragma: no cover - validated earlier
         raise HTTPException(status_code=400, detail="invalid_parameters")

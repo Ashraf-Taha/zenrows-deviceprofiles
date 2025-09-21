@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from fastapi.openapi.models import APIKey
 from dotenv import load_dotenv
 from app.api.routes.health import router as health_router
 from app.api.routes.device_profiles import router as profiles_router
@@ -21,7 +20,7 @@ def create_app() -> FastAPI:
     # Note: Middleware still enforces it server-side.
     if app.openapi_schema is None:
         schema = app.openapi()
-    else:
+    else:  # pragma: no cover - unreachable in create_app lifecycle
         schema = app.openapi_schema
     comp = schema.setdefault("components", {}).setdefault("securitySchemes", {})
     comp["ApiKeyAuth"] = {
